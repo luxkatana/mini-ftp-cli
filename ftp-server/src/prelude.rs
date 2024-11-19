@@ -1,4 +1,5 @@
 pub mod prelude {
+    use core::str;
     use std::io::{Read, Write};
     use rsa::{Pkcs1v15Encrypt, RsaPrivateKey, RsaPublicKey};
     use std::time::{SystemTime, UNIX_EPOCH};
@@ -7,9 +8,11 @@ pub mod prelude {
     pub type UniversalResult<T> = Result<T, Box<dyn std::error::Error>>;
     pub fn handshake(client: &mut TcpStream) -> UniversalResult<(RsaPrivateKey, RsaPublicKey, StdRng)> {
         let now_local = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs() as usize;
-        let mut client_time: String = String::new();
-        client.read_to_string(&mut client_time)?;
-
+        let client_time: String = {
+            let mut client_time: [u8; 15] = [0;15];
+            client.read(&mut client_time)?;
+            String::from_utf8(client_time.to_vec())?
+        }.chars().filter(|c| (*c as u8) >= 48 && (*c as u8) <= 57).collect::<String>();
         let client_time_parsed: usize = match client_time.parse() {
             Ok(t) => t,
             Err(_) => {
@@ -21,7 +24,7 @@ pub mod prelude {
         };
 
         if (now_local - client_time_parsed) > 10 {
-            todo!()
+            todo!("latency")
         }
 
 
@@ -41,12 +44,10 @@ pub mod prelude {
 
 
     }
-    pub fn encrypt_message(privatekey: &RsaPrivateKey, publickey: &RsaPublicKey, rng: &mut StdRng, data: String) -> UniversalResult<> {
-        let encoded = publickey.encrypt(&mut rng, Pkcs1v15Encrypt, data.as_bytes());
+    pub fn encrypt_message(privatekey: &RsaPrivateKey, publickey: &RsaPublicKey, rng: &mut StdRng, data: String) -> UniversalResult<Vec<u8>> {
+        let encoded = publickey.encrypt(rng, Pkcs1v15Encrypt, data.as_bytes())?;
 
-
-
-
+        Ok(encoded)
     }
 
 }
