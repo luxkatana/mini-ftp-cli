@@ -1,18 +1,19 @@
 use ratatui::{
     crossterm::event::{self, KeyCode, KeyEventKind},
-    style::{Color, Stylize},
+    style::Stylize,
     widgets::Paragraph,
     DefaultTerminal,
 };
 use rustls::pki_types::ServerName;
+use tar::Archive;
 use std::{
-    env::current_dir, path::{Path, PathBuf}, sync::Arc, thread::current
+    env::current_dir, io::Write, path::{Path, PathBuf}, sync::Arc
 };
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_rustls::rustls::ClientConfig;
 use tokio_rustls::TlsConnector;
-use useful::client::{block_to_continue, load_certificates, print_directory, unwrap_empty_string};
+use useful::{client::{block_to_continue, load_certificates, print_directory, unwrap_empty_string}, server::path_exists};
 use useful::{
     client::{calculate_packet_size, draw_input_field, print_file},
     server::build_packet,
@@ -88,7 +89,51 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                     KeyCode::Char('s') => {
                         let path = {
                             if !current_entry.starts_with("FILE_") {
-                                todo!("NOt yet supported :)");
+                                let current_entry = format!("SAVEDIR_{}", current_entry.strip_prefix("DIR_").unwrap());
+                                let default_val = {
+                                        let mut current = current_dir()?;
+                                        current.push(format!("copied_{}", Path::new(&current_entry).file_name().unwrap().to_str().unwrap()));
+                                        current.to_str().unwrap().to_string()
+
+                                };
+                                
+                                let mut path_to_receive = PathBuf::from(draw_input_field(terminal, Some("Enter path to save folder ".to_string()), Some(default_val))?);
+                                if path_to_receive.parent().is_none() {
+                                    block_to_continue(Paragraph::new("Invalid path"), terminal)?;
+                                    continue;
+                                }
+                                if path_exists(&path_to_receive) {
+                                    loop {
+                                        terminal.draw(|frame| {
+                                            frame.render_widget(Paragraph::new("Folder exists, should I delete the old folder? (press 'y' for yes or 'n' for no)"), frame.area());
+                                        })?;
+                                        if let event::Event::Key(e) = event::read()? {
+                                            if e.kind == KeyEventKind::Press && e.code == KeyCode::Char('y') {
+                                                std::fs::remove_dir_all(&path_to_receive)?;
+                                                
+
+                                            }
+
+                                        }
+
+                                    }
+                                }
+                                let packet = build_packet(current_entry, '\r');
+                                client.write(&packet).await?;
+                                let mut tarbuffer = vec![0u8;calculate_packet_size(&mut client).await?];
+                                client.read_exact(&mut tarbuffer).await?;
+                                std::fs::create_dir(&path_to_receive)?;
+                                path_to_receive.push("filetar.tar");
+                                let mut tarfile = std::fs::File::create(&path_to_receive)?;
+                                tarfile.write(&tarbuffer)?;
+                                tarfile.flush()?;
+                                let mut archive = Archive::new(std::fs::File::open(&path_to_receive).unwrap());
+                                path_to_receive.pop();
+                                archive.unpack(&path_to_receive)?;
+                                block_to_continue(Paragraph::new(format!("Unpacked at location {}", path_to_receive.to_string_lossy())), terminal)?;
+                                continue
+
+
                             }
                             let mut default_val = current_dir().unwrap();
                             default_val.push(Path::new(current_entry.strip_prefix("FILE_").unwrap()).file_name().unwrap());

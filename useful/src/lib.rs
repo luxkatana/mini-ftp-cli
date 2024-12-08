@@ -6,6 +6,9 @@ pub mod server {
 
     use crate::prelude::UniversalResult;
     use std::{fs::read_dir, path::PathBuf};
+    pub fn path_exists(path: &PathBuf) -> bool {
+        path.exists()
+    }
 
 
     pub fn list_directory(directory: &PathBuf) -> UniversalResult<Vec<String>> {

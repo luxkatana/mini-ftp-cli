@@ -11,3 +11,4 @@ tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7" # Optional for framed communication
 tokio-rustls = "0.26.0"
 rustls = "0.23.18"
+tar = "0.4.43"
