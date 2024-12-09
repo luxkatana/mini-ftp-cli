@@ -27,6 +27,19 @@ This project consists of a server and a client, and it's obviously that you need
 
 *NOTE: Pleaes make sure that port 13360 is open on the firewall!*
 
+
+## Keys in ftp-client
+
+I implemented the following keys when doing stuff in ftp-client:
+- ``k`` and ``<UP_ARROW>`` keys to move up
+- ``j`` and `` <DOWN_ARROW>`` keys to move down
+- ``s`` to save a file/client from the server
+- ``<LEFT_ARROW>`` To go back in time  :sparkles:
+- ``<Enter> `` to select a file/folder and do something useful with it ig
+- ``q`` and ``<KEY_ESCAPE>`` to escape from the ftp-client 
+
+
+
 ## What I learnt of this project
 
 I learnt the following things:
