@@ -1,23 +1,29 @@
 use ratatui::{
     crossterm::event::{self, KeyCode, KeyEventKind},
-    style::Stylize,
+    style::{Color, Stylize},
     widgets::Paragraph,
     DefaultTerminal,
 };
 use rustls::pki_types::ServerName;
-use tar::Archive;
 use std::{
-    env::current_dir, io::Write, path::{Path, PathBuf}, sync::Arc
+    env::current_dir,
+    io::Write,
+    path::{Path, PathBuf},
+    sync::Arc,
 };
+use tar::Archive;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_rustls::rustls::ClientConfig;
 use tokio_rustls::TlsConnector;
-use useful::{client::{block_to_continue, load_certificates, print_directory, unwrap_empty_string}, server::path_exists};
+use useful::{
+    client::{block_to_continue, load_certificates, print_directory, unwrap_empty_string},
+    server::path_exists,
+};
 use useful::{
     client::{calculate_packet_size, draw_input_field, print_file},
+    prelude::UniversalResult,
     server::build_packet,
-    prelude::UniversalResult
 };
 const DESTINATION_ADDRESS: &str = "0.0.0.0:13360";
 const CERTIFICATE_PATH: &str = "../certificates/rootCA.crt";
@@ -77,7 +83,10 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
     let mut data: Vec<u8> = vec![0; calculate_packet_size(&mut client).await?];
     client.read(&mut data).await?;
     let mut entries = unwrap_empty_string(String::from_utf8(data).unwrap(), "\r");
+    let mut folder_history: Vec<String> = vec![];
+
     let mut currently_selected: usize = 0;
+
     loop {
         let current_entry = entries.get(currently_selected).unwrap().to_str().unwrap();
         terminal.clear()?;
@@ -89,15 +98,28 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                     KeyCode::Char('s') => {
                         let path = {
                             if !current_entry.starts_with("FILE_") {
-                                let current_entry = format!("SAVEDIR_{}", current_entry.strip_prefix("DIR_").unwrap());
+                                let current_entry = format!(
+                                    "SAVEDIR_{}",
+                                    current_entry.strip_prefix("DIR_").unwrap()
+                                );
                                 let default_val = {
-                                        let mut current = current_dir()?;
-                                        current.push(format!("copied_{}", Path::new(&current_entry).file_name().unwrap().to_str().unwrap()));
-                                        current.to_str().unwrap().to_string()
-
+                                    let mut current = current_dir()?;
+                                    current.push(format!(
+                                        "copied_{}",
+                                        Path::new(&current_entry)
+                                            .file_name()
+                                            .unwrap()
+                                            .to_str()
+                                            .unwrap()
+                                    ));
+                                    current.to_str().unwrap().to_string()
                                 };
-                                
-                                let mut path_to_receive = PathBuf::from(draw_input_field(terminal, Some("Enter path to save folder ".to_string()), Some(default_val))?);
+
+                                let mut path_to_receive = PathBuf::from(draw_input_field(
+                                    terminal,
+                                    Some("Enter path to save folder ".to_string()),
+                                    Some(default_val),
+                                )?);
                                 if path_to_receive.parent().is_none() {
                                     block_to_continue(Paragraph::new("Invalid path"), terminal)?;
                                     continue;
@@ -105,43 +127,76 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                                 if path_exists(&path_to_receive) {
                                     loop {
                                         terminal.draw(|frame| {
-                                            frame.render_widget(Paragraph::new("Folder exists, should I delete the old folder? (press 'y' for yes or 'n' for no)"), frame.area());
+                                            frame.render_widget(Paragraph::new("There is already a folder on that place, should I delete the old folder? (press 'y' for yes or 'n' for no)").centered(), frame.area());
                                         })?;
                                         if let event::Event::Key(e) = event::read()? {
-                                            if e.kind == KeyEventKind::Press && e.code == KeyCode::Char('y') {
+                                            if e.kind == KeyEventKind::Press
+                                                && e.code == KeyCode::Char('y')
+                                            {
                                                 std::fs::remove_dir_all(&path_to_receive)?;
-                                                
-
+                                                break;
+                                            } else {
+                                                break;
                                             }
-
                                         }
-
+                                    }
+                                    if path_exists(&path_to_receive) {
+                                        continue;
                                     }
                                 }
+                                terminal.clear()?;
+                                terminal.draw(|frame| {
+                                    frame.render_widget(
+                                        Paragraph::new("Pulling from server please wait...")
+                                            .centered()
+                                            .yellow(),
+                                        frame.area(),
+                                    );
+                                })?;
                                 let packet = build_packet(current_entry, '\r');
                                 client.write(&packet).await?;
-                                let mut tarbuffer = vec![0u8;calculate_packet_size(&mut client).await?];
+                                let mut tarbuffer =
+                                    vec![0u8; calculate_packet_size(&mut client).await?];
                                 client.read_exact(&mut tarbuffer).await?;
                                 std::fs::create_dir(&path_to_receive)?;
                                 path_to_receive.push("filetar.tar");
                                 let mut tarfile = std::fs::File::create(&path_to_receive)?;
                                 tarfile.write(&tarbuffer)?;
                                 tarfile.flush()?;
-                                let mut archive = Archive::new(std::fs::File::open(&path_to_receive).unwrap());
+                                let mut archive =
+                                    Archive::new(std::fs::File::open(&path_to_receive).unwrap());
                                 path_to_receive.pop();
                                 archive.unpack(&path_to_receive)?;
-                                block_to_continue(Paragraph::new(format!("Unpacked at location {}", path_to_receive.to_string_lossy())), terminal)?;
-                                continue
-
-
+                                block_to_continue(
+                                    Paragraph::new(format!(
+                                        "Unpacked at location {}",
+                                        path_to_receive.to_string_lossy()
+                                    ))
+                                    .bold()
+                                    .centered()
+                                    .fg(Color::Green),
+                                    terminal,
+                                )?;
+                                continue;
                             }
                             let mut default_val = current_dir().unwrap();
-                            default_val.push(Path::new(current_entry.strip_prefix("FILE_").unwrap()).file_name().unwrap());
+                            default_val.push(
+                                Path::new(current_entry.strip_prefix("FILE_").unwrap())
+                                    .file_name()
+                                    .unwrap(),
+                            );
 
-                            draw_input_field(terminal, Some("Enter file path".to_string()), Some(default_val.to_str().unwrap().to_string()))?
+                            draw_input_field(
+                                terminal,
+                                Some("Enter file path".to_string()),
+                                Some(default_val.to_str().unwrap().to_string()),
+                            )?
                         };
                         if PathBuf::from(&path).parent().is_none() {
-                            block_to_continue(Paragraph::new("Invalid path... (Press anything to escape)"), terminal)?;
+                            block_to_continue(
+                                Paragraph::new("Invalid path... (Press anything to escape)"),
+                                terminal,
+                            )?;
                             continue;
                         }
                         let packet = build_packet(current_entry.to_string(), '\r');
@@ -150,18 +205,17 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                         client.read(&mut got).await?;
 
                         std::fs::write(path, got)?;
-
                     }
                     KeyCode::Char('q') | KeyCode::Esc => {
                         return Ok(());
                     }
-                    KeyCode::Up => {
+                    KeyCode::Up | KeyCode::Char('k') => {
                         if currently_selected == 0 {
                             currently_selected = entries.len();
                         }
                         currently_selected -= 1;
                     }
-                    KeyCode::Enter => {
+                    KeyCode::Enter | KeyCode::Right => {
                         let packet = build_packet(current_entry.to_string(), '\r');
                         client.write(&packet).await?;
                         if current_entry.starts_with("FILE_") {
@@ -208,7 +262,13 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                                                     break path;
                                                 };
                                                 std::fs::write(path, &filecontent_as_str)?;
-                                                block_to_continue(Paragraph::new("File created (press anything to escape)").green(), terminal)?;
+                                                block_to_continue(
+                                                    Paragraph::new(
+                                                        "File created (press anything to escape)",
+                                                    )
+                                                    .green(),
+                                                    terminal,
+                                                )?;
                                             }
                                             _ => {}
                                         }
@@ -216,14 +276,35 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                                 }
                             }
                         } else {
-                            let mut directories = vec![0u8;calculate_packet_size(&mut client).await?];
+                            if entries.len() > 1 {
+                                if entries[1].starts_with("FILE_") {
+                                    let modified = entries[1].parent().unwrap().to_str().unwrap().to_string();
+                                    let modified = modified.strip_prefix("FILE_").unwrap();
+                                    folder_history.push(format!("DIR_{modified}"));
+                                }
+                                else {
+                                folder_history.push(entries[1].parent().unwrap().to_str().unwrap().to_string());
+                                }
+                            }
+                            let mut directories =
+                                vec![0u8; calculate_packet_size(&mut client).await?];
                             client.read_exact(&mut directories).await?;
                             entries = unwrap_empty_string(String::from_utf8(directories)?, "\r");
                             currently_selected = 0;
+                        }
+                    }
+                    KeyCode::Left => {
+                        if let Some(last) = folder_history.pop() {
+                            let packet = build_packet(last, '\r');
+                            client.write(&packet).await?;
+                            let mut content = vec![0u8; calculate_packet_size(&mut client).await?];
+                            client.read_exact(&mut content).await?;
+                            entries = unwrap_empty_string(String::from_utf8(content)?, "\r");
+
 
                         }
                     }
-                    KeyCode::Down => {
+                    KeyCode::Down | KeyCode::Char('j') => {
                         currently_selected = (currently_selected + 1) % entries.len();
                     }
                     _ => (),
