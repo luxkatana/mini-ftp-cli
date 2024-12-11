@@ -1,15 +1,9 @@
 use ratatui::{
-    crossterm::event::{self, KeyCode, KeyEventKind},
-    style::{Color, Stylize},
-    widgets::Paragraph,
-    DefaultTerminal,
+    crossterm::event::{self, KeyCode, KeyEventKind}, style::{Color, Stylize}, widgets::Paragraph, DefaultTerminal
 };
 use rustls::pki_types::ServerName;
 use std::{
-    env::current_dir,
-    io::Write,
-    path::{Path, PathBuf},
-    sync::Arc,
+    env::current_dir, io::Write, path::{Path, PathBuf}, sync::Arc
 };
 use tar::Archive;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -69,7 +63,7 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
     let mut client = {
         let client = TcpStream::connect(DESTINATION_ADDRESS).await?;
         connector
-            .connect(ServerName::try_from("localhost")?, client)
+            .connect(ServerName::try_from("0.0.0.0")?, client)
             .await?
     };
 
@@ -225,6 +219,7 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                             client.read_exact(&mut filecontent).await?;
                             let filecontent_as_str =
                                 String::from_utf8_lossy(&filecontent).to_string();
+                            
                             'inside_file: loop {
                                 print_file(terminal, &filecontent_as_str)?;
                                 if let event::Event::Key(key) = event::read()? {

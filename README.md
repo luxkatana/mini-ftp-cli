@@ -49,5 +49,5 @@ I learnt the following things:
 
 
 
-*** By the way, /certificates consists of certificates in case you didn't know that..!***
+***By the way, /certificates consists of certificates in case you didn't know that..!***
 
