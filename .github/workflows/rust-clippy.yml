@@ -41,15 +41,18 @@ jobs:
       - name: Install required cargo
         run: cargo install clippy-sarif sarif-fmt
 
-      - name: Run rust-clippy
-        run:
-          cargo clippy
-          --all-features
-          --message-format=json | clippy-sarif | tee rust-clippy-results.sarif | sarif-fmt
+      - name: Run rust-clippy in all directories
+        run: |
+          mkdir -p analysis-results
+          for dir in ftp-client ftp-server useful; do
+            cd $dir
+            cargo clippy --all-features --message-format=json | clippy-sarif | tee ../analysis-results/rust-clippy-results-$dir.sarif | sarif-fmt
+            cd ..
+          done
         continue-on-error: true
 
-      - name: Upload analysis results to GitHub
+      - name: Upload combined analysis to GitHub
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: rust-clippy-results.sarif
+          sarif_file: analysis-results/*.sarif
           wait-for-processing: true
