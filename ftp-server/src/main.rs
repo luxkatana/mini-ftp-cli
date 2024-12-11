@@ -79,7 +79,6 @@ async fn main() -> UniversalResult<()> {
 
             }
             else if let Some(data) = data.strip_prefix("SAVEDIR_") {
-                println!("saving started");
                 let path = Path::new(data);
                 let mut buffer: Vec<u8> = vec![];
                 {
@@ -91,7 +90,6 @@ async fn main() -> UniversalResult<()> {
                 packet.extend_from_slice(&buffer);
 
                 client.write(&packet).await?;
-                println!("Saving sent");
 
             }
             else {
