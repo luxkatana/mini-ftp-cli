@@ -48,11 +48,12 @@ jobs:
             cd $dir
             cargo clippy --all-features --message-format=json | clippy-sarif | tee ../analysis-results/rust-clippy-results-$dir.sarif | sarif-fmt
             cd ..
+            ls analysis_results
           done
         continue-on-error: true
 
       - name: Upload combined analysis to GitHub
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: analysis-results/*.sarif
+          sarif_file: ~/analysis-results/*.sarif
           wait-for-processing: true
