@@ -6,7 +6,6 @@ use rustls::pki_types::ServerName;
 use std::{
     env::current_dir, io::Write, path::{Path, PathBuf}, sync::Arc
 };
-
 use tar::Archive;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
