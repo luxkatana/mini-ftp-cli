@@ -56,15 +56,15 @@ pub mod client {
             }).unwrap();
         }
     }
-    use std::{path::PathBuf, rc::Rc};
+    use std::path::PathBuf;
 
     use ratatui::{
-        crossterm::{event, style::Stylize},
+        crossterm::event,
         layout::{Alignment, Constraint, Direction, Layout},
-        style::{Color, Modifier, Style},
-        text::{Line, Span, Text},
+        style::{Color, Style},
+        text::{Line, Text},
         widgets::{Block, Paragraph},
-        DefaultTerminal, Frame,
+        DefaultTerminal, 
     };
     use rustls::RootCertStore;
     use tokio::{io::AsyncReadExt, net::TcpStream};
