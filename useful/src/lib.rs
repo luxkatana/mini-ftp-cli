@@ -78,7 +78,7 @@ pub mod client {
             let mut buffer: [u8; 1] = [0];
             let mut content_len = String::new();
             while buffer[0] != b'\r' {
-                client.read(&mut buffer).await?;
+                client.read_exact(&mut buffer).await?;
                 content_len.push(buffer[0] as char);
             }
             content_len.pop();
@@ -86,9 +86,9 @@ pub mod client {
             content_len.parse()?
         })
     }
-    pub fn print_file(terminal: &mut DefaultTerminal, content: &String) -> UniversalResult<()> {
+    pub fn print_file(terminal: &mut DefaultTerminal, content: &str) -> UniversalResult<()> {
         terminal.draw(|frame| {
-            frame.render_widget(Text::from(content.as_str()), frame.area());
+            frame.render_widget(Text::from(content), frame.area());
         })?;
         Ok(())
     }
