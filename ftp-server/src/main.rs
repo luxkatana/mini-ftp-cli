@@ -1,3 +1,4 @@
+#![allow(clippy::unused_io_amount)]
 use rustls::ServerConfig;
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
@@ -45,7 +46,7 @@ async fn main() -> UniversalResult<()> {
                 let mut current_char: [u8;1] = [0];
                 let mut buffer = String::new();
                 while current_char[0] != b'\r' {
-                client.read(&mut current_char).await?;
+                client.read_exact(&mut current_char).await?;
                 buffer.push(current_char[0] as char);
                 }
                 buffer.pop();
