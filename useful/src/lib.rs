@@ -5,8 +5,8 @@ pub mod server {
     use rustls::pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer};
 
     use crate::prelude::UniversalResult;
-    use std::{fs::read_dir, path::PathBuf};
-    pub fn path_exists(path: &PathBuf) -> bool {
+    use std::{fs::read_dir, path::{Path, PathBuf}};
+    pub fn path_exists(path: &Path) -> bool {
         path.exists()
     }
 
