@@ -102,12 +102,10 @@ async fn main() -> UniversalResult<()> {
             }
         };
         }.await;
-        match thread_result {
-            Err(error) => {
+        if let Err(error) = thread_result {
                 eprintln!("Error when serving client {addr}: {error}");
-            },
-            _ => ()
-        };
+
+        }
         });
     }
 }

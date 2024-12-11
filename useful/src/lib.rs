@@ -106,12 +106,12 @@ pub mod client {
     pub fn unwrap_empty_string(data_decrypted: String, seperator: &str) -> Vec<PathBuf> {
         data_decrypted
             .split(seperator)
-            .map(|entry| PathBuf::from(entry))
+            .map(PathBuf::from)
             .collect()
     }
     pub fn print_directory(
         terminal: &mut DefaultTerminal,
-        entries: &Vec<PathBuf>,
+        entries: &[PathBuf],
         currently_selected: usize,
     ) -> UniversalResult<()> {
         let mut lines: Vec<Line> = vec![];
