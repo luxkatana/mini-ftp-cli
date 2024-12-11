@@ -1,3 +1,4 @@
+#![allow(clippy::unused_io_amount)]
 use ratatui::{
     crossterm::event::{self, KeyCode, KeyEventKind}, style::{Color, Stylize}, widgets::Paragraph, DefaultTerminal
 };
@@ -69,13 +70,13 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
 
     terminal.draw(|frame| {
         frame.render_widget(
-            Paragraph::new(format!("Connected!\n")).centered().green(),
+            Paragraph::new("Connected!\n").centered().green(),
             frame.area(),
         );
     })?;
 
     let mut data: Vec<u8> = vec![0; calculate_packet_size(&mut client).await?];
-    client.read(&mut data).await?;
+    client.read_exact(&mut data).await?;
     let mut entries = unwrap_empty_string(String::from_utf8(data).unwrap(), "\r");
     let mut folder_history: Vec<String> = vec![];
 
@@ -196,7 +197,7 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                         let packet = build_packet(current_entry.to_string(), '\r');
                         client.write(&packet).await?;
                         let mut got: Vec<u8> = vec![0; calculate_packet_size(&mut client).await?];
-                        client.read(&mut got).await?;
+                        client.read_exact(&mut got).await?;
 
                         std::fs::write(path, got)?;
                     }
@@ -231,7 +232,7 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                                                 let filename =
                                                     filename.file_name().unwrap().to_str().unwrap();
                                                 terminal.clear()?;
-                                                let path = loop {
+                                                let path = {
                                                     let mut default_val = current_dir().unwrap();
                                                     default_val.push(Path::new(&filename));
                                                     let path = PathBuf::from(
@@ -254,7 +255,7 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                                                         }
                                                     }
 
-                                                    break path;
+                                                    path
                                                 };
                                                 std::fs::write(path, &filecontent_as_str)?;
                                                 block_to_continue(
