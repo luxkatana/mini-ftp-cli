@@ -297,7 +297,6 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                             client.read_exact(&mut content).await?;
                             entries = unwrap_empty_string(String::from_utf8(content)?, "\r");
 
-
                         }
                     }
                     KeyCode::Down | KeyCode::Char('j') => {
