@@ -11,39 +11,16 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 use tokio_rustls::rustls::ClientConfig;
 use tokio_rustls::TlsConnector;
-use useful::{
-    client::{block_to_continue, load_certificates, print_directory, unwrap_empty_string},
-    server::path_exists,
-};
-use useful::{
-    client::{calculate_packet_size, draw_input_field, print_file},
-    prelude::UniversalResult,
-    server::build_packet,
-};
+use useful::{client::*, prelude::*};
 const DESTINATION_ADDRESS: &str = "0.0.0.0:13360";
 const CERTIFICATE_PATH: &str = "../certificates/rootCA.crt";
 #[tokio::main]
 async fn main() -> UniversalResult<()> {
     let mut terminal = ratatui::init();
     terminal.clear()?;
-    match run(&mut terminal).await {
-        Ok(_) => (),
-        Err(error) => {
-            terminal.clear()?;
-            loop {
-                terminal.draw(|frame| {
-                    let paragraph = Paragraph::new(format!("Error: {error} (press q to exit)"))
-                        .blue()
-                        .on_red();
-                    frame.render_widget(paragraph, frame.area());
-                })?;
-                if let event::Event::Key(key) = event::read()? {
-                    if key.kind == KeyEventKind::Press && key.code == KeyCode::Char('q') {
-                        break;
-                    }
-                }
-            }
-        }
+    if let Err(error) = run(&mut terminal).await {
+        terminal.clear()?;
+        block_to_continue(Paragraph::new(format!("Error: {error} (press q to exit)")).blue().on_red(), &mut terminal)?;
     };
     ratatui::restore();
     Ok(())
@@ -64,7 +41,7 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
     let mut client = {
         let client = TcpStream::connect(DESTINATION_ADDRESS).await?;
         connector
-            .connect(ServerName::try_from("0.0.0.0")?, client)
+            .connect(ServerName::try_from("localhost")?, client)
             .await?
     };
 
@@ -213,13 +190,27 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                     KeyCode::Enter | KeyCode::Right => {
                         let packet = build_packet(current_entry.to_string(), '\r');
                         client.write(&packet).await?;
-                        if current_entry.starts_with("FILE_") {
-                            let current_entry = current_entry.strip_prefix("FILE_").unwrap();
+                        if let Some(current_entry) = current_entry.strip_prefix("FILE_") {
+                            let filelen: usize = {
+                                let mut buffer = String::new();
+                                let mut current_char: [u8;1] = [0];
+                                while current_char[0] != b'\r' {
+                                    client.read(&mut current_char).await?;
+                                    buffer.push(current_char[0] as char);
+                                }
+                                if buffer == "fileisbinary\r" {
+                                    block_to_continue(Paragraph::new(format!("I can't show {current_entry} because it is a binary file sorry :(")).centered().bg(Color::Red), terminal)?;
+                                    continue
+                                }
+                                buffer.pop();
+                                buffer.parse().unwrap()
+                            };
+                            // let filelen = calculate_packet_size(&mut client).await?;
                             let mut filecontent =
-                                vec![0; calculate_packet_size(&mut client).await?];
+                                vec![0; filelen];
                             client.read_exact(&mut filecontent).await?;
-                            let filecontent_as_str =
-                                String::from_utf8_lossy(&filecontent).to_string();
+                            let filecontent_as_str = String::from_utf8(filecontent)?;
+                            
                             
                             'inside_file: loop {
                                 print_file(terminal, &filecontent_as_str)?;
@@ -271,7 +262,8 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                                     }
                                 }
                             }
-                        } else {
+                        } 
+                        else {
                             if entries.len() > 1 {
                                 if entries[1].starts_with("FILE_") {
                                     let modified = entries[1].parent().unwrap().to_str().unwrap().to_string();

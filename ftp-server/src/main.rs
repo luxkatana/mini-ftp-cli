@@ -3,7 +3,7 @@ use rustls::ServerConfig;
 use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 use tar::Builder;
-use useful::prelude::UniversalResult;
+use useful::prelude::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use useful::server::*;
 use std::{path::{Path, PathBuf}, sync::Arc};
@@ -56,9 +56,22 @@ async fn main() -> UniversalResult<()> {
             let mut data: Vec<u8> = vec![0;content_length];
             client.read_exact(&mut data).await?;
             let data = String::from_utf8(data)?;
-            println!("Received: {data}");
             if let Some(data) = data.strip_prefix("FILE_") {
-                let content = std::fs::read_to_string(data)?;
+                // println!("Why this dealer");
+                // let content = std::fs::read_to_string(data)?;
+                let content = {
+                    
+
+                    match String::from_utf8(std::fs::read(data)?) {
+                        Ok(e) => e,
+                        Err(_) => {
+                            let packet = b"fileisbinary\r";
+                            client.write(packet).await?;
+                            continue;
+                        }
+
+                    }
+                };
                 let packet =  build_packet(content, '\r');
                 client.write(&packet).await?;
 

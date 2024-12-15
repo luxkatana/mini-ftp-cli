@@ -1,14 +1,18 @@
 pub mod prelude {
     pub type UniversalResult<T> = Result<T, Box<dyn std::error::Error>>;
+    pub fn path_exists(path: &std::path::Path) -> bool {
+        path.exists()
+    }
+    pub fn build_packet(data: String, seperator: char) -> Vec<u8> {
+        let result = format!("{}{seperator}{data}", data.len());
+        Vec::from(result)
+    }
 }
 pub mod server {
     use rustls::pki_types::{pem::PemObject, CertificateDer, PrivateKeyDer};
 
     use crate::prelude::UniversalResult;
-    use std::{fs::read_dir, path::{Path, PathBuf}};
-    pub fn path_exists(path: &Path) -> bool {
-        path.exists()
-    }
+    use std::{fs::read_dir, path::PathBuf};
 
 
     pub fn list_directory(directory: &PathBuf) -> UniversalResult<Vec<String>> {
@@ -29,10 +33,6 @@ pub mod server {
 
         Ok(result)
     }
-    pub fn build_packet(data: String, seperator: char) -> Vec<u8> {
-        let result = format!("{}{seperator}{data}", data.len());
-        Vec::from(result)
-    }
     pub fn load_tls(
         cert_path: &str,
         pk_path: &str,
@@ -47,15 +47,6 @@ pub mod server {
 }
 
 pub mod client {
-    #[macro_export]
-    macro_rules! dbgfastprint {
-        ($terminal: expr, $($arg: expr),+) => {
-            let x = format!($($arg),+);
-            $terminal.draw(|frame| {
-                frame.render_widget(ratatui::widgets::Paragraph::new(x).alignment(ratatui::layout::Alignment::Center), frame.area());
-            }).unwrap();
-        }
-    }
     use std::path::PathBuf;
 
     use ratatui::{
