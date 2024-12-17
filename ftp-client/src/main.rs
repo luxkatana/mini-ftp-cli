@@ -213,7 +213,7 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                             
                             
                             'inside_file: loop {
-                                print_file(terminal, &filecontent_as_str)?;
+                                print_file(terminal, &filecontent_as_str, Path::new(&current_entry))?;
                                 if let event::Event::Key(key) = event::read()? {
                                     if key.kind == KeyEventKind::Press {
                                         match key.code {

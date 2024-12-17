@@ -47,17 +47,18 @@ pub mod server {
 }
 
 pub mod client {
-    use std::path::PathBuf;
+    use std::{ffi::OsStr, path::PathBuf};
 
     use ratatui::{
         crossterm::event,
         layout::{Alignment, Constraint, Direction, Layout},
         style::{Color, Style},
-        text::{Line, Text},
+        text::{Line, Span, Text},
         widgets::{Block, Paragraph},
         DefaultTerminal, 
     };
     use rustls::RootCertStore;
+    use syntect::{easy::HighlightLines, highlighting::ThemeSet, parsing::{SyntaxReference, SyntaxSet}, util::LinesWithEndings};
     use tokio::{io::AsyncReadExt, net::TcpStream};
     use tokio_rustls::client::TlsStream;
 
@@ -77,9 +78,39 @@ pub mod client {
             content_len.parse()?
         })
     }
-    pub fn print_file(terminal: &mut DefaultTerminal, content: &str) -> UniversalResult<()> {
+    pub fn print_file(terminal: &mut DefaultTerminal, content: &str, filename: &std::path::Path) -> UniversalResult<()> {
+        let ps = SyntaxSet::load_defaults_newlines();
+        let ts = ThemeSet::load_defaults();
+        let syntax: &syntect::parsing::SyntaxReference = {
+            if let Some(extension) = filename.extension() {
+                let extension = extension.to_str().unwrap();
+                if let Some(e) = ps.find_syntax_by_extension(extension) {
+                    e
+                }
+                else {
+                    ps.find_syntax_by_extension("txt").unwrap()
+                }
+
+            }
+            else {
+            ps.find_syntax_by_extension("txt").unwrap()
+            }
+        };
+        let mut h = HighlightLines::new(syntax, &ts.themes["base16-ocean.dark"]);
+        let mut lines: Vec<Line>  = vec![];
+        for line in LinesWithEndings::from(content) { // LinesWithEndings enables use of newlines mode
+            let line_spans: Vec<Span> =
+                h.highlight_line(line, &ps)
+                .unwrap()
+                .into_iter()
+                .filter_map(|segment| syntect_tui::into_span(segment).ok())
+         .collect();
+        let line = ratatui::text::Line::from(line_spans);
+        lines.push(line);
+        }
+
         terminal.draw(|frame| {
-            frame.render_widget(Text::from(content), frame.area());
+            frame.render_widget(Text::from(lines), frame.area());
         })?;
         Ok(())
     }

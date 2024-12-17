@@ -6,9 +6,10 @@ edition = "2021"
 [dependencies]
 rand = "0.8.5"
 ratatui = "0.29.0"
-rsa = "0.9.6"
 tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7" # Optional for framed communication
 tokio-rustls = "0.26.0"
 rustls = "0.23.18"
 rustls-pemfile = "2.2.0"
+syntect-tui = "3.0.5"
+syntect = "5.0.0"
