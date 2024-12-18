@@ -47,7 +47,7 @@ pub mod server {
 }
 
 pub mod client {
-    use std::{ffi::OsStr, path::PathBuf};
+    use std::path::PathBuf;
 
     use ratatui::{
         crossterm::event,
@@ -58,7 +58,7 @@ pub mod client {
         DefaultTerminal, 
     };
     use rustls::RootCertStore;
-    use syntect::{easy::HighlightLines, highlighting::ThemeSet, parsing::{SyntaxReference, SyntaxSet}, util::LinesWithEndings};
+    use syntect::{easy::HighlightLines, highlighting::ThemeSet, parsing::SyntaxSet, util::LinesWithEndings};
     use tokio::{io::AsyncReadExt, net::TcpStream};
     use tokio_rustls::client::TlsStream;
 

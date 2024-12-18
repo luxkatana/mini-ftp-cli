@@ -57,8 +57,6 @@ async fn main() -> UniversalResult<()> {
             client.read_exact(&mut data).await?;
             let data = String::from_utf8(data)?;
             if let Some(data) = data.strip_prefix("FILE_") {
-                // println!("Why this dealer");
-                // let content = std::fs::read_to_string(data)?;
                 let content = {
                     
 
@@ -114,7 +112,7 @@ async fn main() -> UniversalResult<()> {
         };
         }.await;
         if let Err(error) = thread_result {
-            
+            eprintln!("An error occured while handling {addr}: {error}");
 
         }
         });
