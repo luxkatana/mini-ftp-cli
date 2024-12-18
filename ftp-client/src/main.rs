@@ -235,21 +235,16 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                                             KeyCode::Char('q') => break,
                                             KeyCode::Char('k') | KeyCode::Up => {
                                                 // block_to_continue(Paragraph::new(format!("{amount_of_lines_file}\t{screen_max_y}\t{pointer_to_start}\t{pointer_to_end}")), terminal)?;
-                                                if amount_of_lines_file > screen_max_y {
-                                                    
-                                                    if pointer_to_end >= screen_max_y {
+                                                if amount_of_lines_file > screen_max_y && pointer_to_end >= screen_max_y{
                                                         pointer_to_end -= 1;
                                                         pointer_to_start -= 1;
-                                                    }
                                                 }
 
                                             },
                                             KeyCode::Char('j') | KeyCode::Down =>  {
-                                                if amount_of_lines_file > screen_max_y {
-                                                    if (amount_of_lines_file - 1) > (pointer_to_end + 1) {
+                                                if amount_of_lines_file > screen_max_y && (amount_of_lines_file - 1) > (pointer_to_end - 1){
                                                     pointer_to_end += 1;
                                                     pointer_to_start += 1
-                                                }
                                             }
 
                                             },
