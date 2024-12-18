@@ -1,4 +1,5 @@
-#![allow(clippy::unused_io_amount)]
+#![allow(clippy::unused_io_amount, unused_variables)]
+use crossterm::{terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}, ExecutableCommand};
 use ratatui::{
     crossterm::event::{self, KeyCode, KeyEventKind}, style::{Color, Stylize}, widgets::Paragraph, DefaultTerminal
 };
@@ -16,13 +17,19 @@ const DESTINATION_ADDRESS: &str = "0.0.0.0:13360";
 const CERTIFICATE_PATH: &str = "../certificates/rootCA.crt";
 #[tokio::main]
 async fn main() -> UniversalResult<()> {
-    let mut terminal = ratatui::init();
+    let backend = ratatui::backend::CrosstermBackend::new(std::io::stdout());
+    enable_raw_mode()?;
+    let mut stdout = std::io::stdout();
+    stdout.execute(EnterAlternateScreen)?;
+    let mut terminal = ratatui::Terminal::new(backend)?;
+    // let mut terminal = ratatui::init();
     terminal.clear()?;
     if let Err(error) = run(&mut terminal).await {
         terminal.clear()?;
         block_to_continue(Paragraph::new(format!("Error: {error} (press q to exit)")).blue().on_red(), &mut terminal)?;
     };
-    ratatui::restore();
+    stdout.execute(LeaveAlternateScreen)?;
+    disable_raw_mode()?;
     Ok(())
 }
 async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
@@ -63,6 +70,7 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
         let current_entry = entries.get(currently_selected).unwrap().to_str().unwrap();
         terminal.clear()?;
         // block_to_continue(Paragraph::new(format!("{:?}", entries)), terminal)?;
+        // TODO: Extend list of dirs if sizelen is bigger
         print_directory(terminal, &entries, currently_selected)?;
         if let event::Event::Key(key) = event::read()? {
             if key.kind == KeyEventKind::Press {
@@ -210,14 +218,41 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                                 vec![0; filelen];
                             client.read_exact(&mut filecontent).await?;
                             let filecontent_as_str = String::from_utf8(filecontent)?;
-                            
+                            let mut pointer_to_end: u16 = 0;
+                            let mut pointer_to_start: u16 = 0;
+                            let screen_max_y: u16 = get_screen_size().1;
+                            let amount_of_lines_file: u16 = filecontent_as_str.lines().collect::<Vec<&str>>().len() as u16;
+                            if amount_of_lines_file > screen_max_y {
+                                pointer_to_end = screen_max_y - 1;
+                            }
+
                             
                             'inside_file: loop {
-                                print_file(terminal, &filecontent_as_str, Path::new(&current_entry))?;
+                                print_file(terminal, &filecontent_as_str, Path::new(&current_entry), pointer_to_start, pointer_to_end)?;
                                 if let event::Event::Key(key) = event::read()? {
                                     if key.kind == KeyEventKind::Press {
                                         match key.code {
                                             KeyCode::Char('q') => break,
+                                            KeyCode::Char('k') | KeyCode::Up => {
+                                                // block_to_continue(Paragraph::new(format!("{amount_of_lines_file}\t{screen_max_y}\t{pointer_to_start}\t{pointer_to_end}")), terminal)?;
+                                                if amount_of_lines_file > screen_max_y {
+                                                    
+                                                    if pointer_to_end >= screen_max_y {
+                                                        pointer_to_end -= 1;
+                                                        pointer_to_start -= 1;
+                                                    }
+                                                }
+
+                                            },
+                                            KeyCode::Char('j') | KeyCode::Down =>  {
+                                                if amount_of_lines_file > screen_max_y {
+                                                    if (amount_of_lines_file - 1) > (pointer_to_end + 1) {
+                                                    pointer_to_end += 1;
+                                                    pointer_to_start += 1
+                                                }
+                                            }
+
+                                            },
                                             KeyCode::Char('s') => {
                                                 let filename = PathBuf::from(current_entry);
                                                 let filename =

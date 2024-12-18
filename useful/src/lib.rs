@@ -52,7 +52,7 @@ pub mod client {
     use ratatui::{
         crossterm::event,
         layout::{Alignment, Constraint, Direction, Layout},
-        style::{Color, Style},
+        style::{Color, Style, Stylize},
         text::{Line, Span, Text},
         widgets::{Block, Paragraph},
         DefaultTerminal, 
@@ -63,6 +63,9 @@ pub mod client {
     use tokio_rustls::client::TlsStream;
 
     use crate::prelude::UniversalResult;
+    pub fn get_screen_size() -> (u16, u16) {
+        ratatui::crossterm::terminal::size().unwrap()
+    }
     pub async fn calculate_packet_size(
         client: &mut TlsStream<TcpStream>,
     ) -> UniversalResult<usize> {
@@ -78,7 +81,23 @@ pub mod client {
             content_len.parse()?
         })
     }
-    pub fn print_file(terminal: &mut DefaultTerminal, content: &str, filename: &std::path::Path) -> UniversalResult<()> {
+    pub fn print_file(terminal: &mut DefaultTerminal, content: &str, filename: &std::path::Path, pointer_to_start: u16, pointer_to_end: u16) -> UniversalResult<()> {
+        let content = {
+            let mut result = String::new();
+            for (index, line) in content.lines().enumerate() {
+                // block_to_continue(Paragraph::new(format!("{pointer_to_start}\t{pointer_to_end}\t{index}")), terminal)?;
+                let index = index as u16;
+                if pointer_to_end < index {
+                    break
+                }
+                if index >= pointer_to_start && pointer_to_end >= index{
+                    result.push_str(line);
+                    result.push('\n');
+                }
+            }
+            result
+        };
+        let content = content.as_str();
         let ps = SyntaxSet::load_defaults_newlines();
         let ts = ThemeSet::load_defaults();
         let syntax: &syntect::parsing::SyntaxReference = {
@@ -107,6 +126,10 @@ pub mod client {
          .collect();
         let line = ratatui::text::Line::from(line_spans);
         lines.push(line);
+        }
+        for _ in lines.len()..(get_screen_size().1 as usize) {
+                lines.push(Line::from("~").fg(Color::LightBlue));
+
         }
 
         terminal.draw(|frame| {
