@@ -17,6 +17,11 @@ const DESTINATION_ADDRESS: &str = "0.0.0.0:13360";
 const CERTIFICATE_PATH: &str = "../certificates/rootCA.crt";
 #[tokio::main]
 async fn main() -> UniversalResult<()> {
+    std::panic::set_hook(Box::new(|panicinfo| {
+        ratatui::restore();
+        eprintln!("Fatal error - program panicked: {:?}", panicinfo);
+        std::process::exit(1);
+    }));
     let backend = ratatui::backend::CrosstermBackend::new(std::io::stdout());
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
@@ -65,13 +70,12 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
     let mut folder_history: Vec<String> = vec![];
 
     let mut currently_selected: usize = 0;
+    let mut pointing_to_start: usize = 0; // '..' is always first
 
     loop {
         let current_entry = entries.get(currently_selected).unwrap().to_str().unwrap();
         terminal.clear()?;
-        // block_to_continue(Paragraph::new(format!("{:?}", entries)), terminal)?;
-        // TODO: Extend list of dirs if sizelen is bigger
-        print_directory(terminal, &entries, currently_selected)?;
+        print_directory(terminal, &entries, currently_selected, pointing_to_start)?;
         if let event::Event::Key(key) = event::read()? {
             if key.kind == KeyEventKind::Press {
                 match key.code {
@@ -192,9 +196,14 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                     KeyCode::Up | KeyCode::Char('k') => {
                         if currently_selected == 0 {
                             currently_selected = entries.len();
+                        
                         }
                         currently_selected -= 1;
-                    }
+                        if pointing_to_start > 0 {
+                            pointing_to_start -= 1;
+                        }
+
+                    },
                     KeyCode::Enter | KeyCode::Right => {
                         let packet = build_packet(current_entry.to_string(), '\r');
                         client.write(&packet).await?;
@@ -310,7 +319,7 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                             entries = unwrap_empty_string(String::from_utf8(directories)?, "\r");
                             currently_selected = 0;
                         }
-                    }
+                    },
                     KeyCode::Left => {
                         if let Some(last) = folder_history.pop() {
                             let packet = build_packet(last, '\r');
@@ -320,10 +329,14 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                             entries = unwrap_empty_string(String::from_utf8(content)?, "\r");
 
                         }
-                    }
+                    },
                     KeyCode::Down | KeyCode::Char('j') => {
                         currently_selected = (currently_selected + 1) % entries.len();
-                    }
+                        if entries.len() > get_screen_size().1 as usize  && currently_selected + 1 > (get_screen_size().1 as usize) {
+                            pointing_to_start += 1;
+                        }
+
+                    },
                     _ => (),
                 }
             }
