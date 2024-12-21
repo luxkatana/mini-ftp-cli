@@ -1,4 +1,4 @@
-#![allow(clippy::unused_io_amount, unused_variables)]
+#![allow(clippy::unused_io_amount)]
 use crossterm::{terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}, ExecutableCommand};
 use ratatui::{
     crossterm::event::{self, KeyCode, KeyEventKind}, style::{Color, Stylize}, widgets::Paragraph, DefaultTerminal
