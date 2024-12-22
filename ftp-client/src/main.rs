@@ -1,7 +1,7 @@
-#![allow(clippy::unused_io_amount)]
+#![allow(clippy::unused_io_amount, clippy::implicit_saturating_sub)]
 use crossterm::{terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen}, ExecutableCommand};
 use ratatui::{
-    crossterm::event::{self, KeyCode, KeyEventKind}, style::{Color, Stylize}, widgets::Paragraph, DefaultTerminal
+    crossterm::event::{self, KeyCode, KeyEventKind}, layout::{Constraint, Layout}, style::{Color, Stylize}, widgets::{Block, Borders, Paragraph}, DefaultTerminal
 };
 use rustls::pki_types::ServerName;
 use std::{
@@ -19,7 +19,9 @@ const CERTIFICATE_PATH: &str = "../certificates/rootCA.crt";
 async fn main() -> UniversalResult<()> {
     std::panic::set_hook(Box::new(|panicinfo| {
         ratatui::restore();
-        eprintln!("Fatal error - program panicked: {:?}", panicinfo);
+        let location = panicinfo.location().unwrap();
+        let payload = panicinfo.payload();
+        eprintln!("Fatal error - program panicked\n\ton line: {}\n\tin file: {}\n\tpayload: {:?}", location.line(), location.file(), payload);
         std::process::exit(1);
     }));
     let backend = ratatui::backend::CrosstermBackend::new(std::io::stdout());
@@ -79,6 +81,57 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
         if let event::Event::Key(key) = event::read()? {
             if key.kind == KeyEventKind::Press {
                 match key.code {
+                    KeyCode::Char(' ') => {
+                        loop {
+                            let (filetype, filesize, path) = {
+                                let path = {
+                                let path = current_entry.strip_prefix("DIR_").unwrap_or_else(|| current_entry.strip_prefix("FILE_").unwrap());
+                                let mut packet = build_packet(format!("FILEINFO_{path}"), '\r');
+                                client.write(&mut packet).await?;
+                                path
+                                };
+                                let mut data = vec![0u8; calculate_packet_size(&mut client).await?];
+                                client.read_exact(&mut data).await?;
+                                let data_converted = String::from_utf8(data)?;
+                                let data_converted = data_converted.split("\r").map(|d| d.parse::<u64>().unwrap()).collect::<Vec<u64>>();
+                                (data_converted[0], data_converted[1], path)
+
+                            };
+                            let filetypeparagraph = Paragraph::new(if filetype == 1 {"Entrytype: File"} else {"Entrytype: Folder"}).centered();
+                            let filesizeparagraph = Paragraph::new(format!("Entry size: {:.2} KB", filesize / 1024)).centered();
+
+                            terminal.draw(|frame| {
+                                let center = {
+                                    let horizontal_mid = Layout::new(ratatui::layout::Direction::Horizontal, vec![
+                                        Constraint::Percentage(30),
+                                        Constraint::Percentage(40),
+                                        Constraint::Percentage(30)
+                                    ]).split(frame.area())[1];
+                                    let vertical_mid = Layout::new(ratatui::layout::Direction::Vertical, vec![
+                                        Constraint::Percentage(30),
+                                        Constraint::Percentage(40),
+                                        Constraint::Percentage(30)
+                                    ]).split(horizontal_mid)[1];
+                                    frame.render_widget(Block::new().borders(Borders::ALL), vertical_mid);
+                                    /*
+                                    Entry type: Folder/File
+                                    Entry size:  ... KB
+                                     */
+                                    Layout::new(ratatui::layout::Direction::Vertical, vec![Constraint::Percentage(100 / 3), Constraint::Percentage(100 / 3), Constraint::Percentage(100/3)]).split(vertical_mid)
+                                };
+                                frame.render_widget(Paragraph::new(path), center[0]);
+                                frame.render_widget(filetypeparagraph, center[1]);
+                                frame.render_widget(filesizeparagraph, center[2]);
+                                
+
+                            })?;
+                            if let event::Event::Key(e) = event::read()? {
+                                if e.kind == KeyEventKind::Press {
+                                    break
+                                }
+                            }
+                        }
+                    },
                     KeyCode::Char('s') => {
                         let path = {
                             if !current_entry.starts_with("FILE_") {
@@ -191,14 +244,23 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                         std::fs::write(path, got)?;
                     }
                     KeyCode::Char('q') | KeyCode::Esc => {
+                        {
+                            let packet = build_packet("SHUTDOWN".into(), '\r');
+                            client.write(&packet).await?;
+                        }
+
                         return Ok(());
                     }
                     KeyCode::Up | KeyCode::Char('k') => {
-                        if currently_selected == 0 {
+                        if currently_selected == 0 && get_screen_size().1 > entries.len() as u16 {
                             currently_selected = entries.len();
-                        
                         }
+
+
+                        if currently_selected > 0 {
                         currently_selected -= 1;
+                        }
+
                         if pointing_to_start > 0 {
                             pointing_to_start -= 1;
                         }

@@ -54,7 +54,7 @@ pub mod client {
         layout::{Alignment, Constraint, Direction, Layout},
         style::{Color, Style, Stylize},
         text::{Line, Span, Text},
-        widgets::{Block, Paragraph},
+        widgets::{Block, Paragraph, Widget},
         DefaultTerminal, 
     };
     use rustls::RootCertStore;
@@ -158,9 +158,13 @@ pub mod client {
         terminal: &mut DefaultTerminal,
         entries: &[PathBuf],
         currently_selected: usize,
+        pointing_to_begin: usize
     ) -> UniversalResult<()> {
         let mut lines: Vec<Line> = vec![];
         for (index, entry) in entries.iter().enumerate() {
+            if index < pointing_to_begin {
+                continue;
+            }
             let entry_str = entry.to_str().unwrap();
             let (prefix, mut style) = if entry_str.starts_with("DIR_") {
                 ("DIR_", Style::default().fg(Color::White))
@@ -234,12 +238,13 @@ pub mod client {
         }
         Ok(content)
     }
-    pub fn block_to_continue(text: Paragraph, terminal: &mut DefaultTerminal) -> UniversalResult<()> {
+    pub fn block_to_continue<T: Widget + Clone>(widget: T, terminal: &mut DefaultTerminal) -> UniversalResult<()> {
         terminal.clear()?;
         loop {
-            let paragraph = text.clone();
+            let widget = widget.clone();
+            
             terminal.draw(|frame| {
-                frame.render_widget(paragraph, frame.area());
+                frame.render_widget(widget, frame.area());
             })?;
             if let event::Event::Key(_) = event::read()? {
                 break
