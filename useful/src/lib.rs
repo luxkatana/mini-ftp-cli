@@ -14,7 +14,6 @@ pub mod server {
     use crate::prelude::UniversalResult;
     use std::{fs::read_dir, path::PathBuf};
 
-
     pub fn list_directory(directory: &PathBuf) -> UniversalResult<Vec<String>> {
         let mut result: Vec<String> = Vec::new();
         if directory.parent().is_some() {
@@ -52,14 +51,16 @@ pub mod client {
     use ratatui::{
         crossterm::event,
         layout::{Alignment, Constraint, Direction, Layout},
-        style::{Color, Style, Stylize},
+        style::{Color, Modifier, Style, Stylize},
         text::{Line, Span, Text},
         widgets::{Block, Paragraph, Widget},
-        DefaultTerminal, 
+        DefaultTerminal,
     };
     use rustls::RootCertStore;
-    use syntect::{easy::HighlightLines, highlighting::ThemeSet, parsing::SyntaxSet, util::LinesWithEndings};
-    use tokio::{io::AsyncReadExt, net::TcpStream};
+    use syntect::{
+        easy::HighlightLines, highlighting::ThemeSet, parsing::SyntaxSet, util::LinesWithEndings,
+    };
+    use tokio::{io::{split, AsyncReadExt}, net::TcpStream};
     use tokio_rustls::client::TlsStream;
 
     use crate::prelude::UniversalResult;
@@ -81,16 +82,23 @@ pub mod client {
             content_len.parse()?
         })
     }
-    pub fn print_file(terminal: &mut DefaultTerminal, content: &str, filename: &std::path::Path, pointer_to_start: u16, pointer_to_end: u16) -> UniversalResult<()> {
+    pub fn print_file(
+        terminal: &mut DefaultTerminal,
+        content: &str,
+        filename: &std::path::Path,
+        pointer_to_start: u16,
+        pointer_to_end: u16,
+        statustext: String
+    ) -> UniversalResult<()> {
         let content = {
             let mut result = String::new();
             for (index, line) in content.lines().enumerate() {
                 // block_to_continue(Paragraph::new(format!("{pointer_to_start}\t{pointer_to_end}\t{index}")), terminal)?;
                 let index = index as u16;
                 if pointer_to_end < index {
-                    break
+                    break;
                 }
-                if index >= pointer_to_start && pointer_to_end >= index{
+                if index >= pointer_to_start && pointer_to_end >= index {
                     result.push_str(line);
                     result.push('\n');
                 }
@@ -105,35 +113,43 @@ pub mod client {
                 let extension = extension.to_str().unwrap();
                 if let Some(e) = ps.find_syntax_by_extension(extension) {
                     e
-                }
-                else {
+                } else {
                     ps.find_syntax_by_extension("txt").unwrap()
                 }
-
-            }
-            else {
-            ps.find_syntax_by_extension("txt").unwrap()
+            } else {
+                ps.find_syntax_by_extension("txt").unwrap()
             }
         };
         let mut h = HighlightLines::new(syntax, &ts.themes["base16-ocean.dark"]);
-        let mut lines: Vec<Line>  = vec![];
-        for line in LinesWithEndings::from(content) { // LinesWithEndings enables use of newlines mode
-            let line_spans: Vec<Span> =
-                h.highlight_line(line, &ps)
+        let mut lines: Vec<Line> = vec![];
+        for line in LinesWithEndings::from(content) {
+            // LinesWithEndings enables use of newlines mode
+            let line_spans: Vec<Span> = h
+                .highlight_line(line, &ps)
                 .unwrap()
                 .into_iter()
                 .filter_map(|segment| syntect_tui::into_span(segment).ok())
-         .collect();
-        let line = ratatui::text::Line::from(line_spans);
-        lines.push(line);
+                .collect();
+            let line = ratatui::text::Line::from(line_spans);
+            lines.push(line);
         }
         for _ in lines.len()..(get_screen_size().1 as usize) {
-                lines.push(Line::from("~").fg(Color::LightBlue));
-
+            lines.push(Line::from("~").fg(Color::LightBlue));
         }
 
         terminal.draw(|frame| {
-            frame.render_widget(Text::from(lines), frame.area());
+            let splitted_layout = Layout::new(
+                Direction::Vertical,
+                vec![Constraint::Percentage(95), Constraint::Percentage(5)],
+            )
+            .split(frame.area());
+            frame.render_widget(Text::from(lines), splitted_layout[0]);
+
+
+            let status_block = Paragraph::new(statustext).style(
+                Style::new().fg(Color::Black).bg(Color::Green).add_modifier(Modifier::BOLD));
+
+            frame.render_widget(status_block, splitted_layout[1]);
         })?;
         Ok(())
     }
@@ -149,16 +165,13 @@ pub mod client {
     }
 
     pub fn unwrap_empty_string(data_decrypted: String, seperator: &str) -> Vec<PathBuf> {
-        data_decrypted
-            .split(seperator)
-            .map(PathBuf::from)
-            .collect()
+        data_decrypted.split(seperator).map(PathBuf::from).collect()
     }
     pub fn print_directory(
         terminal: &mut DefaultTerminal,
         entries: &[PathBuf],
         currently_selected: usize,
-        pointing_to_begin: usize
+        pointing_to_begin: usize,
     ) -> UniversalResult<()> {
         let mut lines: Vec<Line> = vec![];
         for (index, entry) in entries.iter().enumerate() {
@@ -185,7 +198,11 @@ pub mod client {
         Ok(())
     }
 
-    pub fn draw_input_field(terminal: &mut DefaultTerminal, _title: Option<String>, default_val: Option<String>) -> UniversalResult<String> {
+    pub fn draw_input_field(
+        terminal: &mut DefaultTerminal,
+        _title: Option<String>,
+        default_val: Option<String>,
+    ) -> UniversalResult<String> {
         let mut content = {
             let mut x = String::new();
             if let Some(val) = default_val {
@@ -193,7 +210,11 @@ pub mod client {
             }
             x
         };
-        let _title = if let Some(_title) = _title {_title} else {"Input field".to_string()};
+        let _title = if let Some(_title) = _title {
+            _title
+        } else {
+            "Input field".to_string()
+        };
         loop {
             let mut content_clone = content.clone();
             let _title = _title.clone();
@@ -220,34 +241,34 @@ pub mod client {
                 match key.code {
                     event::KeyCode::Char('q') => {
                         break;
-                    },
-                    event::KeyCode::Enter => {
-                        break
                     }
+                    event::KeyCode::Enter => break,
                     event::KeyCode::Backspace => {
                         content_clone.pop();
-                    },
+                    }
                     event::KeyCode::Char(character) => {
                         content_clone.push(character);
-                    },
+                    }
                     _ => {}
-                    
                 }
             }
             content = content_clone;
         }
         Ok(content)
     }
-    pub fn block_to_continue<T: Widget + Clone>(widget: T, terminal: &mut DefaultTerminal) -> UniversalResult<()> {
+    pub fn block_to_continue<T: Widget + Clone>(
+        widget: T,
+        terminal: &mut DefaultTerminal,
+    ) -> UniversalResult<()> {
         terminal.clear()?;
         loop {
             let widget = widget.clone();
-            
+
             terminal.draw(|frame| {
                 frame.render_widget(widget, frame.area());
             })?;
             if let event::Event::Key(_) = event::read()? {
-                break
+                break;
             }
         }
 

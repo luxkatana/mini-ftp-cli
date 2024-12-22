@@ -4,7 +4,6 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-rand = "0.8.5"
 ratatui = "0.29.0"
 tokio = { version = "1", features = ["full"] }
 tokio-util = "0.7" # Optional for framed communication

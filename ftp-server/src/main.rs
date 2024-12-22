@@ -104,7 +104,7 @@ async fn main() -> UniversalResult<()> {
                             let path = std::path::Path::new(data);
                             let file = std::fs::File::open(path)?;
                             let metadata = file.metadata().unwrap();
-                            let isfile = if metadata.file_type().is_file() == true {1} else {0};
+                            let isfile = if metadata.file_type().is_file() {1} else {0};
                             (isfile, metadata.len())
                         };
                         {

@@ -37,6 +37,7 @@ I implemented the following keys when doing stuff in ftp-client:
 - ``<LEFT_ARROW>`` To go back in time  :sparkles:
 - ``<Enter> `` to select a file/folder and do something useful with it ig
 - ``q`` and ``<KEY_ESCAPE>`` to escape from the ftp-client 
+-- ``<SPACE>`` get the entry info
 
 
 

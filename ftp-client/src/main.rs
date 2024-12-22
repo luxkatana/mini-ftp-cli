@@ -5,7 +5,7 @@ use ratatui::{
 };
 use rustls::pki_types::ServerName;
 use std::{
-    env::current_dir, io::Write, path::{Path, PathBuf}, sync::Arc
+    env::current_dir, io::{BufRead, Write}, path::{Path, PathBuf}, sync::Arc
 };
 use tar::Archive;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -17,13 +17,18 @@ const DESTINATION_ADDRESS: &str = "0.0.0.0:13360";
 const CERTIFICATE_PATH: &str = "../certificates/rootCA.crt";
 #[tokio::main]
 async fn main() -> UniversalResult<()> {
-    std::panic::set_hook(Box::new(|panicinfo| {
-        ratatui::restore();
-        let location = panicinfo.location().unwrap();
-        let payload = panicinfo.payload();
-        eprintln!("Fatal error - program panicked\n\ton line: {}\n\tin file: {}\n\tpayload: {:?}", location.line(), location.file(), payload);
-        std::process::exit(1);
-    }));
+    if let Err(err) = color_eyre::install() {
+        println!("Couldn't install color_eyre: {err}");
+        println!("Will be using custom panic hook, but it is not so accurate!");
+
+        std::panic::set_hook(Box::new(|panicinfo| {
+            ratatui::restore();
+            let location = panicinfo.location().unwrap();
+            let payload = panicinfo.payload();
+            eprintln!("Fatal error - program panicked\n\ton line: {}\n\tin file: {}\n\tpayload: {:?}", location.line(), location.file(), payload);
+            std::process::exit(1);
+        }));
+    }
     let backend = ratatui::backend::CrosstermBackend::new(std::io::stdout());
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
@@ -86,8 +91,8 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                             let (filetype, filesize, path) = {
                                 let path = {
                                 let path = current_entry.strip_prefix("DIR_").unwrap_or_else(|| current_entry.strip_prefix("FILE_").unwrap());
-                                let mut packet = build_packet(format!("FILEINFO_{path}"), '\r');
-                                client.write(&mut packet).await?;
+                                let packet = build_packet(format!("FILEINFO_{path}"), '\r');
+                                client.write(&packet).await?;
                                 path
                                 };
                                 let mut data = vec![0u8; calculate_packet_size(&mut client).await?];
@@ -297,12 +302,27 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                                 pointer_to_end = screen_max_y - 1;
                             }
 
-                            
+                            let mut jump_to_buffer: String = String::new();
                             'inside_file: loop {
-                                print_file(terminal, &filecontent_as_str, Path::new(&current_entry), pointer_to_start, pointer_to_end)?;
+                                let mut statustext = format!("Viewing {current_entry}");
                                 if let event::Event::Key(key) = event::read()? {
                                     if key.kind == KeyEventKind::Press {
                                         match key.code {
+                                            KeyCode::Char('g') => {
+                                                let total_linecount = filecontent_as_str.lines().count();
+                                                if !jump_to_buffer.is_empty() && jump_to_buffer.parse::<usize>().unwrap() < total_linecount  {
+                                                    statustext = format!("Jumped to line {jump_to_buffer}");
+                                                    pointer_to_start = jump_to_buffer.parse::<u16>().unwrap();
+                                                    // pointer_to_end = ;
+                                                    todo!("Pointer to end must be defined near-by pointer_to_start");
+
+                                                }
+                                                else {
+                                                    statustext = "ERROR: JUMP BUFFER IS EMPTY OR INVALID".to_string();
+                                                }
+                                                jump_to_buffer.clear();
+
+                                            }
                                             KeyCode::Char('q') => break,
                                             KeyCode::Char('k') | KeyCode::Up => {
                                                 // block_to_continue(Paragraph::new(format!("{amount_of_lines_file}\t{screen_max_y}\t{pointer_to_start}\t{pointer_to_end}")), terminal)?;
@@ -358,10 +378,17 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                                                     terminal,
                                                 )?;
                                             }
+                                            KeyCode::Char(key) => {
+                                                if key.is_digit(10) {
+                                                    jump_to_buffer.push(key);
+                                                    statustext = format!("{jump_to_buffer} (press g to jump)");
+                                                }
+                                            },
                                             _ => {}
                                         }
                                     }
                                 }
+                                print_file(terminal, &filecontent_as_str, Path::new(&current_entry), pointer_to_start, pointer_to_end, statustext)?;
                             }
                         } 
                         else {
