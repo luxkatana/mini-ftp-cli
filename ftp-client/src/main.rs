@@ -5,7 +5,7 @@ use ratatui::{
 };
 use rustls::pki_types::ServerName;
 use std::{
-    env::current_dir, io::{BufRead, Write}, path::{Path, PathBuf}, sync::Arc
+    env::current_dir, ffi::OsStr, io::Write, path::{Path, PathBuf}, sync::Arc
 };
 use tar::Archive;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -289,7 +289,6 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                                 buffer.pop();
                                 buffer.parse().unwrap()
                             };
-                            // let filelen = calculate_packet_size(&mut client).await?;
                             let mut filecontent =
                                 vec![0; filelen];
                             client.read_exact(&mut filecontent).await?;
@@ -304,17 +303,18 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
 
                             let mut jump_to_buffer: String = String::new();
                             'inside_file: loop {
-                                let mut statustext = format!("Viewing {current_entry}");
-                                if let event::Event::Key(key) = event::read()? {
+                                let mut statustext = format!("Viewing {}", Path::new(current_entry).file_name().and_then(OsStr::to_str).unwrap());
+                                if event::poll(std::time::Duration::from_millis(100))? {
+                                    if let event::Event::Key(key) = event::read()? {
                                     if key.kind == KeyEventKind::Press {
                                         match key.code {
                                             KeyCode::Char('g') => {
                                                 let total_linecount = filecontent_as_str.lines().count();
-                                                if !jump_to_buffer.is_empty() && jump_to_buffer.parse::<usize>().unwrap() < total_linecount  {
+                                                let casted = jump_to_buffer.parse::<usize>();
+                                                if !jump_to_buffer.is_empty() && casted.is_ok() && casted.as_ref().unwrap() < &total_linecount  {
                                                     statustext = format!("Jumped to line {jump_to_buffer}");
-                                                    pointer_to_start = jump_to_buffer.parse::<u16>().unwrap();
-                                                    // pointer_to_end = ;
-                                                    todo!("Pointer to end must be defined near-by pointer_to_start");
+                                                    pointer_to_start = casted? as u16;
+                                                    pointer_to_end = pointer_to_start + screen_max_y;
 
                                                 }
                                                 else {
@@ -325,7 +325,6 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                                             }
                                             KeyCode::Char('q') => break,
                                             KeyCode::Char('k') | KeyCode::Up => {
-                                                // block_to_continue(Paragraph::new(format!("{amount_of_lines_file}\t{screen_max_y}\t{pointer_to_start}\t{pointer_to_end}")), terminal)?;
                                                 if amount_of_lines_file > screen_max_y && pointer_to_end >= screen_max_y{
                                                         pointer_to_end -= 1;
                                                         pointer_to_start -= 1;
@@ -388,6 +387,7 @@ async fn run(terminal: &mut DefaultTerminal) -> UniversalResult<()> {
                                         }
                                     }
                                 }
+                            }
                                 print_file(terminal, &filecontent_as_str, Path::new(&current_entry), pointer_to_start, pointer_to_end, statustext)?;
                             }
                         } 

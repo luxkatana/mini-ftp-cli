@@ -24,7 +24,7 @@ async fn main() -> UniversalResult<()> {
 
     let acceptor = TlsAcceptor::from(Arc::new(socket_config));
     let socket = TcpListener::bind(ADDR).await?;
-    println!("Daemon connected to {ADDR}");
+    println!("Listening on address {ADDR} ");
 
     loop {
         let (client, addr) = socket.accept().await?;
@@ -105,6 +105,7 @@ async fn main() -> UniversalResult<()> {
                             let file = std::fs::File::open(path)?;
                             let metadata = file.metadata().unwrap();
                             let isfile = if metadata.file_type().is_file() {1} else {0};
+                            println!("File len: {}", metadata.len());
                             (isfile, metadata.len())
                         };
                         {
